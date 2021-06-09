@@ -2,24 +2,20 @@ package com.ntrj.dh.dhbus;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
-/**
- * @author chubbyhuang
- * @time 2020-09-24
- * @explain  bus具体业务类
- */
-public class DHBus {
+public class DHBus implements IDHBus {
+    private static final String _DEFAULT_TAG = "_DEFAULT_TAG";
+    private final Map<String,LinkedList<IObserver>> mObserverMap;
+    private final Handler mHandler;
     private DHBus() {
-        observerMap = new HashMap<>();
-        handler = new Handler(Looper.getMainLooper());
-        simpleExecutor = Executors.newSingleThreadExecutor();
+        mObserverMap = new LinkedHashMap<>();
+        mHandler = new Handler(Looper.getMainLooper());
     }
 
     private final static class CRATER {
@@ -27,135 +23,109 @@ public class DHBus {
     }
 
     public static DHBus getInstance() {
-        return CRATER.INSTANCE;
+        return DHBus.CRATER.INSTANCE;
     }
 
-    private final Map<String, LinkedList<IObserver>> observerMap;
-    private static final String _DEFAULT_TAG = "_DEFAULT_TAG";
-    private final Handler handler;
-    private final ExecutorService simpleExecutor;
 
-    /**
-     * 注册
-     * @param observer  观察者
-     */
+    @Override
     public void register(IObserver observer) {
-        if (null == observer) return;
-        synchronized (simpleExecutor) {
-            simpleExecutor.execute(() -> {
-                if (null == observerMap.get(_DEFAULT_TAG))
-                    observerMap.put(_DEFAULT_TAG, new LinkedList<>());
-                observerMap.get(_DEFAULT_TAG).add(observer);
-            });
-        }
+        register(_DEFAULT_TAG,observer);
     }
 
-    /**
-     * 注册
-     * @param tag  被观察者标记
-     * @param observer  观察者
-     */
+    @Override
     public void register(String tag, IObserver observer) {
+        if (TextUtils.isEmpty(tag)) return;
         if (null == observer) return;
-        synchronized (simpleExecutor) {
-            simpleExecutor.execute(() -> {
-                if (null == observerMap.get(tag))
-                    observerMap.put(tag, new LinkedList<>());
-                observerMap.get(tag).add(observer);
-            });
+        synchronized (mObserverMap) {
+            if(null == mObserverMap.get(tag))
+                mObserverMap.put(tag,new LinkedList<>());
+            mObserverMap.get(tag).add(observer);
         }
     }
 
-    /**
-     * 取消注册
-     * @param observer  观察者
-     */
+    @Override
     public void unRegister(IObserver observer) {
+        unRegister(_DEFAULT_TAG,observer);
+    }
+
+    @Override
+    public void unRegister(String tag, IObserver observer) {
+        if (TextUtils.isEmpty(tag)) return;
         if (null == observer) return;
-        synchronized (simpleExecutor) {
-            simpleExecutor.execute(() -> {
-                if (null == observerMap.get(_DEFAULT_TAG)) {
-                    observerMap.put(_DEFAULT_TAG, new LinkedList<>());
-                    return;
+        synchronized (mObserverMap) {
+            if(null == mObserverMap.get(tag)) return;
+            Iterator<IObserver> iterator = mObserverMap.get(tag).iterator();
+            while (iterator.hasNext()) {
+                if(observer == iterator.next()){
+                    iterator.remove();
                 }
-                if (observerMap.get(_DEFAULT_TAG).contains(observer))
-                    observerMap.get(_DEFAULT_TAG).remove(observer);
-            });
+            }
         }
     }
 
-    /**
-     * 取消注册
-     * @param tag  被观察者标记
-     * @param observer  观察者
-     */
-    public void unRegister(String tag,IObserver observer) {
-        if (null == observer) return;
-        synchronized (simpleExecutor) {
-            simpleExecutor.execute(() -> {
-                if (null == observerMap.get(tag)) {
-                    observerMap.put(tag, new LinkedList<>());
-                    return;
-                }
-                if (observerMap.get(tag).contains(observer))
-                    observerMap.get(tag).remove(observer);
-            });
-        }
-    }
-
-    /**
-     * 取消被观察者
-     * @param tag  被观察者标记
-     */
+    @Override
     public void unRegister(String tag) {
-        synchronized (simpleExecutor) {
-            simpleExecutor.execute(() -> {
-                if (observerMap.containsKey(tag))
-                    observerMap.remove(tag);
-            });
+        if (TextUtils.isEmpty(tag)) return;
+        synchronized (mObserverMap) {
+            if(null == mObserverMap.get(tag)) return;
+            Iterator<Map.Entry<String,LinkedList<IObserver>>> mapIterator = mObserverMap.entrySet().iterator();
+            while(mapIterator.hasNext()){
+                Map.Entry<String,LinkedList<IObserver>> entry = mapIterator.next();
+                if(entry.getKey().equals(tag)){
+                    Iterator<IObserver> listIterator = entry.getValue().iterator();
+                    while (listIterator.hasNext()) {
+                        listIterator.remove();
+                    }
+                }
+                mapIterator.remove();
+            }
         }
     }
 
-    /**
-     * 通知观察者
-     * @param bean 通知的数据
-     */
+    @Override
+    public void clear() {
+        synchronized (mObserverMap) {
+            Iterator<Map.Entry<String,LinkedList<IObserver>>> mapIterator = mObserverMap.entrySet().iterator();
+            while(mapIterator.hasNext()){
+                Map.Entry<String,LinkedList<IObserver>> entry = mapIterator.next();
+                if(null != entry.getValue()){
+                    Iterator<IObserver> listIterator = entry.getValue().iterator();
+                    while (listIterator.hasNext()) {
+                        listIterator.remove();
+                    }
+                }
+                mapIterator.remove();
+            }
+        }
+    }
+
+    @Override
     public void notifyObserver(BusBean bean) {
-        synchronized (simpleExecutor) {
-            simpleExecutor.execute(() -> {
-                if (null == observerMap.get(_DEFAULT_TAG)) {
-                    observerMap.put(_DEFAULT_TAG, new LinkedList<>());
-                    return;
+        notifyObserver(_DEFAULT_TAG,bean);
+    }
+
+    @Override
+    public void notifyObserver(String tag, BusBean bean) {
+        if (TextUtils.isEmpty(tag)) return;
+        synchronized (mObserverMap) {
+            if(null == mObserverMap.get(tag)) return;
+            Iterator<IObserver> iterator = mObserverMap.get(tag).iterator();
+            while (iterator.hasNext()) {
+                IObserver _observer = iterator.next();
+                if(null != _observer){
+                    _observer.onNotify(bean);
                 }
-                handler.post(() -> {
-                    Iterator<IObserver> iterator = observerMap.get(_DEFAULT_TAG).iterator();
-                    while (iterator.hasNext()) {
-                        iterator.next().onNotify(bean);
-                    }
-                });
-            });
+            }
         }
     }
 
-    /**
-     * 通知观察者
-     * @param tag  被观察者标记
-     * @param bean 通知的数据
-     */
-    public void notifyObserverByTag(String tag, BusBean bean) {
-        synchronized (simpleExecutor) {
-            simpleExecutor.execute(() -> {
-                if (null == observerMap.get(tag)) {
-                    observerMap.put(tag, new LinkedList<>());
-                    return;
-                }
-                handler.post(() -> {
-                    Iterator<IObserver> iterator = observerMap.get(tag).iterator();
-                    while (iterator.hasNext()) {
-                        iterator.next().onNotify(bean);
-                    }
-                });
-            });
-        }
+    @Override
+    public void notifyObserverOnMain(BusBean bean) {
+        notifyObserverOnMain(_DEFAULT_TAG,bean);
+    }
+
+    @Override
+    public void notifyObserverOnMain(String tag, BusBean bean) {
+        mHandler.post(() -> notifyObserver(tag,bean));
     }
 }
