@@ -1,5 +1,9 @@
 package com.ntrj.dh.dhbus;
-
+/**
+ * @author chubbyhuang
+ * @time 2020-09-24
+ * @explain  接口规范
+ */
 public interface IDHBus {
     void register(IObserver observer);
     void register(String tag,IObserver observer);

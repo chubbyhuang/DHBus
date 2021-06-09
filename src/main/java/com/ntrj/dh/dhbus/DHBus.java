@@ -9,6 +9,11 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.Map;
 
+/**
+ * @author chubbyhuang
+ * @time 2020-09-24
+ * @explain  发送的消息对象
+ */
 public class DHBus implements IDHBus {
     private static final String _DEFAULT_TAG = "_DEFAULT_TAG";
     private final Map<String,LinkedList<IObserver>> mObserverMap;
